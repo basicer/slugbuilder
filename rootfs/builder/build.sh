@@ -25,17 +25,25 @@ mkdir -p $secret_dir
 mkdir -p $buildpack_root
 mkdir -p $build_root/.profile.d
 
-if ! [[ -z "${TAR_PATH}" ]]; then
-	get_object
-	tar -xzf /tmp/slug.tgz -C /app/
-	unset TAR_PATH
-fi
+
+curl -L# "$TAR_URL" | tar -xzC /app/ --strip-components=1
+unset TAR_URL
 
 if [[ "$1" == "-" ]]; then
     slug_file="$1"
 else
     slug_file=/tmp/slug.tgz
 fi
+
+app_dir=/app
+build_root=/tmp/build
+cache_root=/tmp/cache
+buildpack_root=/tmp/buildpacks
+
+mkdir -p $app_dir
+mkdir -p $cache_root
+mkdir -p $buildpack_root
+mkdir -p $build_root/.profile.d
 
 function output_redirect() {
     if [[ "$slug_file" == "-" ]]; then
@@ -178,6 +186,7 @@ fi
 
 "$selected_buildpack/bin/compile" "$build_root" "$cache_root" "$env_root" | ensure_indent
 
+
 "$selected_buildpack/bin/release" "$build_root" > $build_root/.release
 
 ## Run post-compile hook
@@ -251,7 +260,5 @@ if [[ "$slug_file" != "-" ]]; then
     slug_size=$(du -Sh "$slug_file" | cut -f1)
     echo_title "Compiled slug size is $slug_size"
 
-    if [[ $PUT_PATH ]]; then
-			put_object
-		fi
+    curl -# -X PUT -T $slug_file "$put_url"
 fi
