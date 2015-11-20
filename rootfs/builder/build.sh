@@ -13,23 +13,8 @@ mkdir -p $cache_root
 mkdir -p $buildpack_root
 mkdir -p $build_root/.profile.d
 
-if ! [[ -z "${TAR_URL}" ]]; then
-	if [[ -e /var/run/secrets/object/store/access-key-id ]]; then
-		if [[ -e /var/run/secrets/object/store/access-secret-key ]]; then
-			keyID=`cat /var/run/secrets/object/store/access-key-id`
-			secretKey=`cat /var/run/secrets/object/store/access-secret-key`
-			domain=`echo $TAR_URL | awk -F/ '{print $3}'`
-			echo $keyID $secretKey $domain
-			mc --quiet config host add $domain $keyID $secretKey
-			mc --quiet cp $TAR_URL /tmp/slug.tgz
-			tar -xzf /tmp/slug.tgz -C /app/
-			unset TAR_URL
-		fi
-	fi
-else
-	curl -s "$TAR_URL" | tar -xzC /app/
-	unset TAR_URL
-fi
+curl -L# "$TAR_URL" | tar -xzC /app/ --strip-components=1
+unset TAR_URL
 
 
 if [[ "$1" == "-" ]]; then
@@ -40,7 +25,6 @@ else
         put_url="$1"
     fi
 fi
-
 
 app_dir=/app
 build_root=/tmp/build
@@ -157,7 +141,6 @@ else
 fi
 
 ## Buildpack compile
-
 $selected_buildpack/bin/compile "$build_root" "$cache_root" | ensure_indent
 
 $selected_buildpack/bin/release "$build_root" "$cache_root" > $build_root/.release
@@ -191,19 +174,5 @@ fi
 if [[ "$slug_file" != "-" ]]; then
     slug_size=$(du -Sh "$slug_file" | cut -f1)
     echo_title "Compiled slug size is $slug_size"
-
-    if [[ $put_url ]]; then
-			if [[ -e /var/run/secrets/object/store/access-key-id ]]; then
-				if [[ -e /var/run/secrets/object/store/access-secret-key ]]; then
-					keyID=`cat /var/run/secrets/object/store/access-key-id`
-					secretKey=`cat /var/run/secrets/object/store/access-secret-key`
-					domain=`echo $put_url | awk -F/ '{print $3}'`
-					echo $keyID $secretKey $domain
-					mc --quiet config host add $domain $keyID $secretKey
-					mc --quiet cp $slug_file $put_url/
-				fi
-			fi
-		else
-      curl -0 -s -o /dev/null -X PUT -T $slug_file "$put_url"
-  	fi
+    curl -# -X PUT -T $slug_file "$put_url"
 fi
